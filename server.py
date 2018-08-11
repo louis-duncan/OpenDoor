@@ -4,8 +4,8 @@ import socket
 import _thread
 from diffiehellman.diffiehellman import DiffieHellman
 
-RECEIVING_IP = "localhost"
-RECEIVING_PORT = 6969
+RECEIVING_IP = "192.168.1.118"
+RECEIVING_PORT = 54321
 
 
 class Node:

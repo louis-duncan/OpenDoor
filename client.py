@@ -6,8 +6,8 @@ import sqlite3
 import pickle
 import datetime
 
-SERVER_IP = "localhost"
-SERVER_PORT = 6969
+SERVER_IP = "86.167.235.118"
+SERVER_PORT = 12345
 SERVER_PUBLIC_KEY = str()
 REFRESH_RATE = int()
 
