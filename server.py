@@ -1,11 +1,15 @@
 import collections
 import datetime
+import os
 import socket
 import _thread
+from sql import SQL
+import sqlite3
 from diffiehellman.diffiehellman import DiffieHellman
 
 RECEIVING_IP = "192.168.1.118"
 RECEIVING_PORT = 54321
+DATABASE_LOCATION = os.path.abspath("server.db")
 
 
 class Node:
@@ -13,6 +17,19 @@ class Node:
         self.node_id = node_id
         self.addr = node_address
         self.key = node_key
+        self.allowed_users = self.get_users()
+
+    def get_users(self):
+        conn = sqlite3.connect(DATABASE_LOCATION)
+        bliss = SQL(conn)
+        member_groups = bliss.all("SELECT group_id FROM node_group_links WHERE node_id=?", (self.node_id, ))
+        allowed_ids = []
+        for m in member_groups:
+            for u in bliss.all("SELECT user_id FROM node_group_permissions WHERE node_group_id=?", (m, )):
+                allowed_ids.append(bliss.one("SELECT access_id FROM users WHERE id=?", (u, )))
+        for u in bliss.all("SELECT user_id FROM node_permissions WHERE node_id=?", (self.node_id, )):
+            allowed_ids.append(bliss.one("SELECT access_id FROM users WHERE id=?", (u,)))
+        return allowed_ids
 
 
 class Server:
@@ -35,23 +52,36 @@ class Server:
         self.add_to_log((datetime.datetime.now(),
                          "Connection Commenced.",
                          addr))
-        key = self.get_key(addr)
-        conn_type = conn.recv(4)
-        if conn_type == b"KEYX":
-            self.key_exchange(conn, addr)
-        elif (crypt(conn_type, key) == b"SYNC") and (key != ""):
-            self.sync_node(conn, addr)
-        else:
-            self.add_to_log((datetime.datetime.now(),
-                             "Connection Refused. '{}'".format(conn_type[:4]),
-                             addr))
-            conn.close()
+        connecting_id = conn.recv(8)
+        node_details =
+        if valid_id:
+            conn_type = conn.recv(4)
+            if conn_type == b"KEYX":
+                self.key_exchange(conn, addr)
+            else:
+                key = self.get_key(addr)
+                if (key != b"") and (key != ""):
+                    if crypt(conn_type, key) == b"SYNC":
+                        self.sync_node(conn, addr)
+                    else:
+                        self.add_to_log((datetime.datetime.now(),
+                                         "Connection Refused: Unrecognised Conn Type '{}'".format(conn_type[:4]),
+                                         addr))
+                        conn.close()
+                else:
+                    self.add_to_log((datetime.datetime.now(),
+                                     "Connection Refused: No Key Found.",
+                                     addr))
+                    conn.close()
 
     def get_key(self, addr):
         key = ""
         for k in self.nodes:
+            print("{} - {}".format(k.addr, addr))
             if k.addr == addr:
+                print("True")
                 key = k.key
+                break
             else:
                 pass
         return key
@@ -94,15 +124,7 @@ class Server:
         self.store_node(client_id, addr, diffie.shared_key)
 
     def sync_node(self, conn, addr):
-        key = self.get_key(addr)
-        if key == "":
-            self.add_to_log((datetime.datetime.now(),
-                             "Insecure Connection Closed",
-                             addr))
-            conn.close()
-            return None
-        else:
-            pass
+        print("Sync from {}".format(addr))
 
     def add_to_log(self, entry):
         self.log.append(entry)
@@ -115,6 +137,7 @@ def crypt(text, key):
     if type(key) == str:
         key = key.encode()
     assert type(text) == type(key) == bytes
+    assert len(key) > 1
     output_values = []
     for i, b in enumerate(text):
         output_values.append(b ^ key[i % len(key)])

@@ -6,7 +6,7 @@ import sqlite3
 import pickle
 import datetime
 
-SERVER_IP = "86.167.235.118"
+SERVER_IP = "louisduncan.uk"
 SERVER_PORT = 12345
 SERVER_PUBLIC_KEY = str()
 REFRESH_RATE = int()
@@ -29,14 +29,16 @@ class Node:
         self.diffie = DiffieHellman()
         self.exchange_keys()
 
-        self.update_authorised_users()
+        self.sync()
 
         print("Node Established.")
 
-    def update_authorised_users(self):
-        pass
+    def sync(self):
+        conn = socket.socket()
+        conn.connect((SERVER_IP, SERVER_PORT))
+        conn.send(self.crypt(b"SYNC"))
 
-    def load_local_cache(self):
+    def update_authorised_users(self):
         pass
 
     def send_transactions(self):
@@ -49,6 +51,7 @@ class Node:
         self.diffie.generate_public_key()
         conn = socket.socket()
         conn.connect((SERVER_IP, SERVER_PORT))
+        conn.send(self.crypt(self.node_id.zfill(8).encode()))
         conn.send(b"KEYX")
         key_len = str(len(str(self.diffie.public_key))).zfill(4).encode()
         conn.send(key_len)
@@ -58,7 +61,6 @@ class Node:
         server_key = int(conn.recv(server_key_len))
 
         self.diffie.generate_shared_secret(server_key)
-        conn.send(self.crypt(self.node_id.zfill(8).encode()))
         conn.close()
 
     def crypt(self, text):
